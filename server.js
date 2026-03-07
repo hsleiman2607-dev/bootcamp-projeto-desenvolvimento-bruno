@@ -23,6 +23,32 @@ app.get("/categorias", async (req, res) => {
     res.json(lista);
 });
 
+// ATUALIZAR CATEGORIA
+app.put("/categorias/:id", async (req, res) => {
+    const { CatNome } = req.body;
+    try {
+        const atualizada = await prisma.categoria.update({
+            where: { CatID: parseInt(req.params.id) },
+            data: { CatNome }
+        });
+        res.json(atualizada);
+    } catch (e) {
+        res.status(500).json({ error: "Erro ao atualizar categoria." });
+    }
+});
+
+// DELETAR CATEGORIA
+app.delete("/categorias/:id", async (req, res) => {
+    try {
+        await prisma.categoria.delete({
+            where: { CatID: parseInt(req.params.id) }
+        });
+        res.status(204).send();
+    } catch (e) {
+        res.status(500).json({ error: "Erro ao deletar: verifique se há registros vinculados." });
+    }
+});
+
 // ==========================================
 // 2. ROTAS DE PESSOAS (Com Telefone e Descrição)
 // ==========================================
@@ -48,6 +74,55 @@ app.post("/pessoas", async (req, res) => {
 app.get("/pessoas", async (req, res) => {
     const lista = await prisma.pessoa.findMany({ include: { categoria: true } });
     res.json(lista);
+});
+
+
+// ATUALIZAR PESSOA
+app.put("/pessoas/:id", async (req, res) => {
+    const { id } = req.params;
+    const { nome_completo, email, telefone, descricao, CatID } = req.body;
+
+    try {
+        const pessoaAtualizada = await prisma.pessoa.update({
+            where: { PesID: parseInt(id) }, // Prisma usa PesID como chave primária aqui
+            data: {
+                nome_completo: nome_completo || undefined,
+                email: email || undefined,
+                telefone: telefone || null,
+                descricao: descricao || null,
+                // Garante que o ID da categoria seja um número antes de salvar
+                CatID: CatID ? parseInt(CatID) : undefined 
+            }
+        });
+        res.json(pessoaAtualizada);
+    } catch (e) {
+        console.error("Erro ao atualizar:", e);
+        res.status(500).json({ error: "Erro ao atualizar pessoa. Verifique se o e-mail já existe ou se o ID é válido." });
+    }
+});
+
+
+// DELETAR PESSOA
+app.delete("/pessoas/:id", async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        await prisma.pessoa.delete({
+            where: { PesID: parseInt(id) } // Certifique-se que o campo no schema é PesID
+        });
+        res.status(204).send(); // Sucesso sem conteúdo
+    } catch (e) {
+        console.error("Erro ao deletar:", e);
+        
+        // Tratamento específico para erro de restrição (Pessoa vinculada a Oferta)
+        if (e.code === 'P2003') {
+            return res.status(400).json({ 
+                error: "Não é possível excluir esta pessoa pois ela possui ofertas vinculadas." 
+            });
+        }
+        
+        res.status(500).json({ error: "Erro interno ao tentar deletar o registro." });
+    }
 });
 
 // ==========================================
